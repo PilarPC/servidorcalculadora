@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<Pane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="271.0" prefWidth="337.0" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.HelloController">
+   <children>
+      <Label fx:id="idServidor" alignment="CENTER" layoutX="28.0" layoutY="7.0" prefHeight="35.0" prefWidth="282.0" text="Servidor">
+         <font>
+            <Font size="17.0" />
+         </font>
+      </Label>
+      <ScrollPane layoutX="28.0" layoutY="49.0" prefHeight="200.0" prefWidth="282.0">
+         <content>
+            <VBox fx:id="historialVB" prefHeight="200.0" prefWidth="263.0" />
+         </content>
+      </ScrollPane>
+   </children>
+</Pane>
