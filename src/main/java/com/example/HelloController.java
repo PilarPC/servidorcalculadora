@@ -1,6 +1,7 @@
 package com.example;
 
 import com.example.paquete.Paquete;
+import com.example.paquete.PuertosSN;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
@@ -15,24 +16,27 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+
 public class HelloController implements Runnable{
     @FXML
     private VBox historialVB;
     @FXML
     private Label idServidor;
-
+    PuertosSN puertosCONEXION=new PuertosSN();
     //VARIABLES GLLOBALES
     String resultado;
     public String mns;
     int puertoServidor = 13000;
     int puertoMiddleware = 11000; //a partir de aqui comienzan los puertos que escuchan los servidores
-
+    //EnvioRespuestas envioResp = new EnvioRespuestas();
+    String tiempoAcuse="s";
+    int puertos_backs[]={13000,13001,13002,13003,13004,13005,13006,13007};
     public void initialize(){
         Thread hilo1 = new Thread(this);
         hilo1.start();
     }
     @Override
-public void run() {
+    public void run() {
         while (true){
             try {
                 ServerSocket servidor = new ServerSocket(puertoServidor);
@@ -42,6 +46,25 @@ public void run() {
                 String puertoString= puertoServidor+"";
                 String huella = generarHuella(puertoString);
                 System.out.println("Huella generada por mi puerto actual "+puertoServidor +" "+huella);
+                puertosCONEXION.puertoServidor=puertoServidor;
+                puertosCONEXION.nodo=puertoMiddleware;
+
+                try {
+                    Socket enviaReceptor=new Socket("127.0.0.1",puertoMiddleware);
+                    ObjectOutputStream paqueteReenvio=new ObjectOutputStream(enviaReceptor.getOutputStream());
+                    Paquete conocerCalcu = new Paquete(" ", puertoServidor, 'N', 'x', " ", " ");
+                    conocerCalcu.setIDdireccion('N');
+                    conocerCalcu.setCodigoOperacion('x');
+                    paqueteReenvio.writeObject(conocerCalcu);
+                    paqueteReenvio.close();
+                    enviaReceptor.close();
+                } catch(IOException e) {
+                    //System.out.println(e);
+                    // System.out.println("servidor apagado: "+puerto);
+                }
+                EnvioRespuestas buscarNodo=new EnvioRespuestas();
+                buscarNodo.puertosSN=puertosCONEXION;
+                buscarNodo.start();
 
                 while (true){
                     //recibo
@@ -50,6 +73,51 @@ public void run() {
                     Paquete paqueteRecibido = (Paquete) flujoEntrada.readObject();
 
                     System.out.println(paqueteRecibido.getMensaje()+" "+ paqueteRecibido.getPuertoEmisor()+ " "+ paqueteRecibido.getIDdireccion());
+                    if(!paqueteRecibido.getClon().equals("") & paqueteRecibido.getClon().equals(huella)){//si llega una huella a clonar
+                        //mensaje.setCodigo(10);
+
+                        if(paqueteRecibido.getTiempoAcuse().length() <= tiempoAcuse.length()){
+
+                        }
+                        else{
+                            tiempoAcuse=paqueteRecibido.getTiempoAcuse();
+
+                            Platform.runLater(()->{
+                                historialVB.getChildren().add(new Label("REALIZANDO MITOSIS"));
+                            });
+                            int puertoNuevo= darPuertoNuevo();
+                            copiaCarpetas(puertosCONEXION.puertoServidor,puertoNuevo);
+                            try {
+                                //Process p=Runtime.getRuntime().exec();
+                                Process p=new ProcessBuilder("D:\\IJ\\proyectos\\Respaldo Claculadora\\BAt\\ClonarServ.bat").start();
+
+                            }catch (Exception t){
+
+                            }
+                            try {
+                                //Process p=Runtime.getRuntime().exec();
+                                ProcessBuilder pb=new ProcessBuilder("D:\\IJ\\proyectos\\Respaldo Claculadora\\BatEjecutableServ\\ServidorEjec.bat");
+                                File log = new File("log"+puertoNuevo);
+                                pb.redirectErrorStream(true);
+                                pb.redirectOutput(ProcessBuilder.Redirect.appendTo(log));
+                                Process p = pb.start();
+                                assert pb.redirectInput() == ProcessBuilder.Redirect.PIPE;
+                                assert pb.redirectOutput().file() == log;
+                                assert p.getInputStream().read() == -1;
+                            }catch (Exception y){
+
+                            }
+
+                            paqueteRecibido.setClon("");
+
+                        }
+
+
+                    }else{
+                        Platform.runLater(() -> {
+                            historialVB.getChildren().add(new Label("Hualla  a clonar "+paqueteRecibido.getClon()+" huella local "+huella));
+                        });
+                    }
 
                     if (paqueteRecibido.getCodigoOperacion() == 'm'){
                         Platform.runLater(() -> {
@@ -71,9 +139,8 @@ public void run() {
                         //System.out.println("Acuse "+acuse);
                         paqueteRecibido.setAcuse(acuse);
 
-
                         //ENVIAR RESULTADO
-                        Socket SocketMiddleware = new Socket("127.0.0.1", puertoMiddleware);
+                        Socket SocketMiddleware = new Socket("127.0.0.1",  puertosCONEXION.nodo);
                         ObjectOutputStream salida =  new ObjectOutputStream(SocketMiddleware.getOutputStream());
                         salida.writeObject(paqueteRecibido);
                         System.out.println(paqueteRecibido.getMensaje()+" "+ paqueteRecibido.getPuertoEmisor()+ " "+ paqueteRecibido.getIDdireccion()+" Envio al puerto "+puertoMiddleware+" ACUSE "+paqueteRecibido.getAcuse());
@@ -95,9 +162,9 @@ public void run() {
                 puertoServidor++;
             }
         }
-}
+    }
 
-//-----------------------------------GENERAR HUELLA--------------------
+    //-----------------------------------GENERAR HUELLA--------------------
     public String generarHuella(String puerto){
         String tiempo = DateTimeFormatter.ofPattern("dd-MM-yyyy | HH:mm:ss").format(LocalDateTime.now());
         String huella = puerto + tiempo;
@@ -121,10 +188,11 @@ public void run() {
     }
 
     //--------------------------------------Microservicios--------
-    static float cargaDeMicroServicios(String nombreFuncion, String nombreDeClase, float valor1, float valor2,String nombreJar) throws MalformedURLException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchFieldException{
+    static float cargaDeMicroServicios(String nombreFuncion, String nombreDeClase, float valor1, float valor2,String nombreJar, String nombreCarpetaServidor) throws MalformedURLException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchFieldException{
 
         URL[] urls = null;
-        File dir = new File("D:"+ File.separator+"IJ"+ File.separator+"proyectos"+ File.separator+"Respaldo Claculadora" + File.separator+nombreJar+".jar"+ File.separator);
+        File dir = new File("C:"+ File.separator+"Users"+ File.separator+"pined"+ File.separator+"OneDrive"+File.separator+"Escritorio"+File.separator+"MicroOp"+ File.separator+ nombreCarpetaServidor + File.separator+nombreJar+".jar"+ File.separator);
+        System.out.println("Estoy leyendo en: "+ dir);
         URL url = dir.toURI().toURL();
         urls = new URL[] { url };
         ClassLoader cl = new URLClassLoader(urls);
@@ -169,26 +237,52 @@ public void run() {
             }
         }
         n2=Float.parseFloat(cadena.getMensaje().substring(cont+1,cadena.getMensaje().length()));
+        String numeroPerto = puertoServidor+"";
+        System.out.println("Mando la operación a la carpeta: "+puertoServidor);
         switch(operacion) {
             case '+':
-                suma = cargaDeMicroServicios("sumar","Suma", n1, n2,"suma");
+                suma = cargaDeMicroServicios("sumar","Suma", n1, n2,"suma", numeroPerto);
                 resultado = suma+"";
                 break;
             case '-':
-                suma = cargaDeMicroServicios("restar","Resta", n1, n2,"resta");
+                suma = cargaDeMicroServicios("restar","Resta", n1, n2,"resta", numeroPerto);
                 resultado = suma+"";
                 break;
             case 'x':
-                suma = cargaDeMicroServicios("multiplicar","Multi", n1, n2,"multi");
+                suma = cargaDeMicroServicios("multiplicar","Multi", n1, n2,"multi", numeroPerto);
                 resultado = suma+"";
                 break;
             case '/':
-                suma = cargaDeMicroServicios("dividir","Div", n1, n2,"div");
+                suma = cargaDeMicroServicios("dividir","Div", n1, n2,"div", numeroPerto);
                 resultado = suma+"";
                 break;
             default:
                 System.out.println("Habitación 5");
                 break;
         }
+    }
+    int darPuertoNuevo(){//Devuelve cual va a ser el siguiente puerto en ser abierto
+        ServerSocket servidor = null;
+        for(int puerto:puertos_backs){
+            try{
+                servidor=new ServerSocket(puerto);
+                servidor.close();
+                return puerto;
+            }
+            catch(IOException e){
+                System.out.println(e);
+            }
+        }
+        return 0;
+    }
+    int copiaCarpetas(int pLocal, int pSigiente) throws IOException {
+        FileWriter file = new FileWriter("D:\\IJ\\proyectos\\Respaldo Claculadora\\BAt\\ClonarServ.bat");
+
+
+        BufferedWriter bw = new BufferedWriter(file);   // creates a buffering character input stream
+        bw.write("copy C:\\Users\\pined\\OneDrive\\Escritorio\\MicroOp\\"+pLocal+"  C:\\Users\\pined\\OneDrive\\Escritorio\\MicroOp\\"+pSigiente);
+        bw.close(); // closes the stream and release the resources
+        file.close();
+        return 0;
     }
 }
